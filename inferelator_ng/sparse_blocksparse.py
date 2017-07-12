@@ -243,7 +243,7 @@ class MT_SBS_regression:
                         'prior': prior}
                 args_list.append(args)
 
-        if cluster_id is None:
+        if not cluster_id:
             for args in args_list:
                 results.append(run_regression_EBIC_SS(args))
         else:
