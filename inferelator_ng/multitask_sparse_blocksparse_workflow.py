@@ -2,7 +2,6 @@
 Run Multitask Network Inference with TFA-SBS.
 """
 import os
-import mi_R
 import numpy as np
 import pandas as pd
 from . import utils

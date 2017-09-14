@@ -276,14 +276,14 @@ class MT_SBS_regression:
         return((weights, rescaled_weights))
 
 
-def sum_squared_erros(X, Y, W, k):
+def sum_squared_errors(X, Y, W, k):
     '''
     Get RSS for a particular task 'k'
     '''
     return(np.sum((Y[k].T-np.dot(X[k], W[:,k]))**2))
 
 
-def ebic(X, Y, W, n_tasks, n_samples, n_preds, gamma = 1):
+def ebic(X, Y, W, n_tasks, n_samples, n_preds, gamma=1):
     '''
     Calculate EBIC for each task, and take the mean
     '''
@@ -294,7 +294,7 @@ def ebic(X, Y, W, n_tasks, n_samples, n_preds, gamma = 1):
         n = n_samples[k]
         nonzero_pred = (W[:,k] != 0).sum()
 
-        RSS = sum_squared_erros(X, Y, W, k)
+        RSS = sum_squared_errors(X, Y, W, k)
         BIC_penalty = nonzero_pred * np.log(n)
         BIC_extension = 2 * gamma * np.log(comb(n_preds, nonzero_pred))
         EBIC.append((n * np.log(RSS/n)) + BIC_penalty + BIC_extension)
