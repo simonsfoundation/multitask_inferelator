@@ -232,7 +232,7 @@ class MT_SBS_regression:
                     X.append(design[k][TFs])
                     Y.append(response[k][gene].values.reshape(-1, 1))
                     tasks.append(k)
-                prior = self.format_prior(priors, gene, TFs, tasks, prior_weight)
+            prior = self.format_prior(priors, gene, TFs, tasks, prior_weight)
 
             if len(X) > 1:
                 args = {'X': X,
