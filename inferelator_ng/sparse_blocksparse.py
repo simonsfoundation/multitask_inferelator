@@ -245,14 +245,14 @@ class MT_SBS_regression:
 
         if not cluster_id:
             for args in args_list:
-                results.append(run_regression_EBIC_SS(args))
+                results.append(run_regression_EBIC(args))
         else:
             import os
             from ipyparallel import Client
             c = Client(cluster_id = cluster_id)
             dview = c.load_balanced_view()
             dview.map(os.chdir, [os.getcwd()]*len(c.ids))
-            results = dview.map(run_regression_EBIC_SS, args_list, ordered = False)
+            results = dview.map(run_regression_EBIC, args_list, ordered = False)
 
         weights = []
         rescaled_weights = []
@@ -338,7 +338,7 @@ def final_weights(X, y, TFs, gene):
     return(out_weights)
 
 
-def run_regression_EBIC_SS(args):
+def run_regression_EBIC(args):
     '''
 
     '''
@@ -377,33 +377,6 @@ def run_regression_EBIC_SS(args):
                 lamS = tmp_lamS
                 outW = W
 
-    ##### STABILITY #####
-#    X = args['X']
-#    Y = args['Y']
-#
-#    W_list = []
-#    np.random.seed(42)
-#    for ss in range(25):
-#        subX = []
-#        subY = []
-#        for k in range(n_tasks):
-#            n = n_samples[k]
-#            subsample = np.random.choice(n, int(np.round(0.5 * n)), replace = False)
-#            subX.append(X[k][subsample,:])
-#            subY.append(Y[k][subsample,:])
-#        subX, subY = model.preprocess_data(subX, subY)
-#        C, D = model.covariance_update_terms(subX, subY)
-#        W, S, B = model.fit(subX, subY, lamB, lamS, C, D)
-#        #print(W[:,0][W[:,0] != 0])
-#        #print(S[:,0][S[:,0] != 0])
-#        W_list.append(np.sign(np.abs(W)))
-#
-#    outW = reduce(np.add, W_list)/25.
-#    outW[outW < 0.7] = 0.
-#    print((outW != 0).sum())
-#    print(np.asarray(TFs)[outW[:,1] >= 0.7])
-#    print(outW[:,1][outW[:,1] >= 0.7])
-
     ###### RESCALE WEIGHTS ######
     output = {}
 
@@ -412,6 +385,5 @@ def run_regression_EBIC_SS(args):
         if nonzero.sum() > 0:
             cTFs = np.asarray(TFs)[outW[:,k] != 0]
             output[k] = final_weights(X[k][:, nonzero], Y[k], cTFs, gene)
-    output['gene'] = gene
 
     return(output)
