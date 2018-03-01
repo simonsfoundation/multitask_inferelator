@@ -11,6 +11,7 @@ from tfa import TFA
 from sparse_blocksparse import *
 from results_processor import ResultsProcessor
 from time import localtime, strftime
+import datetime
 
 class MTL_SBS_Workflow(WorkflowBase):
 
@@ -19,15 +20,14 @@ class MTL_SBS_Workflow(WorkflowBase):
     expression_filelist = ['expression_matrix_file.tsv', 'expression_matrix_file.tsv']
     tf_names_file = 'tf_names.tsv'
     target_genes_file = 'target_genes.tsv'
-    outdir = 'output'
     n_tasks = 2
-    priors = []
-    workflow_objs = []
     prior_weight = 1
     meta_data_filelist = None
     priors_filelist = None
     gold_standard_filelist = None
     cluster_id = None
+    tasks_dir = [''.join(['task_', str(k)]) for k in range(n_tasks)]
+    output_dir = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
 
     def run(self):
@@ -38,8 +38,8 @@ class MTL_SBS_Workflow(WorkflowBase):
 
         self.design_response_driver = design_response_R.DRDriver()
         self.regression_method = MT_SBS_regression()
-        self.multitask_get_data()
-        self.multitask_compute_activity()
+        self.get_data()
+        self.compute_activity()
 
         print('Calculating betas using Multitask Dirty Model')
         print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
@@ -47,7 +47,7 @@ class MTL_SBS_Workflow(WorkflowBase):
         betas = [[] for k in range(self.n_tasks)]
         rescaled_betas = [[] for k in range(self.n_tasks)]
 
-        for idx, bootstrap in enumerate(self.multitask_get_bootstraps()):
+        for idx, bootstrap in enumerate(self.get_bootstraps()):
             print('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps))
             X = []
             Y = []
@@ -71,10 +71,10 @@ class MTL_SBS_Workflow(WorkflowBase):
         print('Saving outputs')
         print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
 
-        self.multitask_emit_results(betas, rescaled_betas)
+        self.emit_results(betas, rescaled_betas)
 
 
-    def multitask_get_data(self):
+    def get_data(self):
         """
         Reads in input files and compute common data (design, response, priors...)
         """
@@ -116,7 +116,7 @@ class MTL_SBS_Workflow(WorkflowBase):
         self.priors = [self.workflow_objs[k].priors_data for k in range(self.n_tasks)]
 
 
-    def multitask_compute_activity(self):
+    def compute_activity(self):
         """
         Compute Transcription Factor Activity
         """
@@ -126,7 +126,7 @@ class MTL_SBS_Workflow(WorkflowBase):
             self.workflow_objs[k].activity = TFA_calculator.compute_transcription_factor_activity()
 
 
-    def multitask_get_bootstraps(self):
+    def get_bootstraps(self):
         """
         Get bootstrap indices for all tasks
         """
@@ -144,18 +144,18 @@ class MTL_SBS_Workflow(WorkflowBase):
         return(bootstraps)
 
 
-    def multitask_emit_results(self, betas, rescaled_betas):
+    def emit_results(self, betas, rescaled_betas):
         """
         Output result report(s) for workflow run.
         """
         for k in range(self.n_tasks):
             task_workflow_obj = self.workflow_objs[k]
-            output_dir = os.path.join(self.input_dir, self.outdir, ''.join(['task', str(k)]))
+            output_dir = os.path.join(self.input_dir, self.output_dir, self.tasks_dir[k])
             os.makedirs(output_dir)
             task_workflow_obj.results_processor = ResultsProcessor(betas[k], rescaled_betas[k])
             task_workflow_obj.results_processor.summarize_network(output_dir, task_workflow_obj.gold_standard, task_workflow_obj.priors_data)
-        # rank-combine hack -- assumes both priors are the same (B.sub.)
-        output_dir = os.path.join(self.input_dir, self.outdir, 'rank-combined')
+        # rank-combine hack -- assumes all priors are the same
+        output_dir = os.path.join(self.input_dir, self.output_dir, 'rank-combined')
         os.makedirs(output_dir)
         task_workflow_obj.results_processor = ResultsProcessor([i for l in betas for i in l], [i for l in rescaled_betas for i in l])
         task_workflow_obj.results_processor.summarize_network(output_dir, task_workflow_obj.gold_standard, task_workflow_obj.priors_data)
