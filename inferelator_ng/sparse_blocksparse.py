@@ -180,22 +180,30 @@ class MT_SBS_regression:
         pass
 
     def format_weights(self, df, col, targets, regs):
+
         df[col] = pd.to_numeric(df[col])
 
         out = pd.pivot_table(df, index = 'target',
-                             columns = 'regulator',
-                             values = col, fill_value = 0.)
+                                 columns = 'regulator',
+                                 values = col,
+                                 fill_value = 0.)
         del out.columns.name
         del out.index.name
 
-        out = pd.concat([out, pd.DataFrame(0., index = out.index, columns = np.setdiff1d(regs, out.columns))], axis = 1)
-        out = pd.concat([out, pd.DataFrame(0., index = np.setdiff1d(targets, out.index), columns = out.columns)])
+        out = pd.concat([out,
+                    pd.DataFrame(0., index = out.index,
+                            columns = np.setdiff1d(regs, out.columns))], axis = 1)
+        out = pd.concat([out,
+                    pd.DataFrame(0., index = np.setdiff1d(targets, out.index),
+                            columns = out.columns)])
         out = out.loc[targets, regs]
 
         return(out)
 
     def format_prior(self, priors, gene, TFs, tasks, prior_weight):
-
+        '''
+        Returns priors for one gene (numpy matrix TFs by tasks)
+        '''
         if priors is None:
             priors_out = None
         else:
@@ -218,23 +226,39 @@ class MT_SBS_regression:
 
         '''
         prior_weight = float(prior_weight)
-        #targets = ['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
+        targets = ['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
         results = []
-        args_list = []
+        args_list = [] # remove
+
+        ##### NOTES FOR KVS #####
+        # for each gene:
+        # if ownCheck:
+        # Subset inputs for regression:
+            # X from design
+            # Y from response
+            # which tasks?
+            # prior: self.format_prior(...) --> returns prior for that gene only
+            # run_regression_EBIC(args)
+                # a change here could be instead of arguments being passed
+                # as a dictionary, they could be passed as regular args...
+            # at the end, we want a list of the outputs of run_regression_EBIC()
 
         for gene in targets:
 
             X = []; Y = []; tasks = []; prior = []
-            TFs = [tf for tf in regulators if tf != gene]
+            TFs = [tf for tf in regulators if tf != gene] # remove self regulation
 
             for k in range(len(design)):
                 if gene in response[k]:
                     X.append(design[k][TFs])
                     Y.append(response[k][gene].values.reshape(-1, 1))
                     tasks.append(k)
-                prior = self.format_prior(priors, gene, TFs, tasks, prior_weight)
+            prior = self.format_prior(priors, gene, TFs, tasks, prior_weight)
 
             if len(X) > 1:
+                # here it could just be if ownCheck, run_regression_EBIC()
+                # also the rank == 0 for no parallelization
+                # instead of saving all inputs in a list
                 args = {'X': X,
                         'Y': Y,
                         'TFs': TFs,
@@ -243,6 +267,8 @@ class MT_SBS_regression:
                         'prior': prior}
                 args_list.append(args)
 
+        ####################### (put the follow-up for kvs here)
+        #### WOULD GO AWAY ####
         if not cluster_id:
             for args in args_list:
                 results.append(run_regression_EBIC(args))
@@ -253,7 +279,10 @@ class MT_SBS_regression:
             dview = c.load_balanced_view()
             dview.map(os.chdir, [os.getcwd()]*len(c.ids))
             results = dview.map(run_regression_EBIC, args_list, ordered = False)
+        #### WOULD GO AWAY ####
+        #######################
 
+        # this could be its own function, but we shall move this later...
         weights = []
         rescaled_weights = []
 
