@@ -226,7 +226,7 @@ class MT_SBS_regression:
 
         '''
         prior_weight = float(prior_weight)
-        targets = ['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
+        # targets = ['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
         results = []
         args_list = [] # remove
 
