@@ -221,6 +221,7 @@ class MT_SBS_regression:
 
 
     def run(self, design, response, targets, regulators,
+                    kvs, rank, ownCheck,
                     cluster_id=None, priors=None, prior_weight=1):
         '''
 

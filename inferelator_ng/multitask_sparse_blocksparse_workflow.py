@@ -12,6 +12,14 @@ from sparse_blocksparse import *
 from results_processor import ResultsProcessor
 from time import localtime, strftime
 import datetime
+from kvsclient import KVSClient
+
+# Connect to the key value store service (its location is found via an
+# environment variable that is set when this is started vid kvsstcp.py
+# --execcmd).
+kvs = KVSClient()
+# Find out which process we are (assumes running under SLURM).
+rank = int(os.environ['SLURM_PROCID'])
 
 class MTL_SBS_Workflow(WorkflowBase):
 
@@ -58,13 +66,11 @@ class MTL_SBS_Workflow(WorkflowBase):
 
             self.regression_method.n_tasks = self.n_tasks
             self.regression_method.feature_count = len(self.tf_names)
+            ownCheck = utils.own(kvs, rank, chunk=25, reset=idx!=0)
             current_betas, current_rescaled_betas = self.regression_method.run(X, Y,
-                                                                               self.target_genes,
-                                                                               self.tf_names,
-                                                                               self.cluster_id,
-                                                                               self.priors,
-                                                                               self.prior_weight)
-            for k in range(self.n_tasks):
+                            self.target_genes, self.tf_names, kvs, rank, ownCheck, 
+                            self.cluster_id, self.priors, self.prior_weight)
+            for k in range(self.n
                 betas[k].append(current_betas[k])
                 rescaled_betas[k].append(current_rescaled_betas[k])
 
