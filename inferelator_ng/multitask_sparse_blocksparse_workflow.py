@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from . import utils
 from workflow import WorkflowBase
-import design_response_R
+import design_response_translation #added python design_response
 from tfa import TFA
 from sparse_blocksparse import *
 from results_processor import ResultsProcessor
@@ -44,7 +44,7 @@ class MTL_SBS_Workflow(WorkflowBase):
         """
         np.random.seed(self.random_seed)
 
-        self.design_response_driver = design_response_R.DRDriver()
+        self.design_response_driver = design_response_translation.PythonDRDriver() #this is the python switch
         self.regression_method = MT_SBS_regression()
         self.get_data()
         self.compute_activity()
@@ -70,7 +70,7 @@ class MTL_SBS_Workflow(WorkflowBase):
             current_betas, current_rescaled_betas = self.regression_method.run(X, Y,
                             self.target_genes, self.tf_names, kvs, rank, ownCheck, 
                             self.cluster_id, self.priors, self.prior_weight)
-            for k in range(self.n
+            for k in range(self.n_tasks):
                 betas[k].append(current_betas[k])
                 rescaled_betas[k].append(current_rescaled_betas[k])
 
