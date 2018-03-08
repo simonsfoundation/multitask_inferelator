@@ -245,65 +245,53 @@ class MT_SBS_regression:
             # at the end, we want a list of the outputs of run_regression_EBIC()
 
         for gene in targets:
+            if ownCheck.next():
 
-            X = []; Y = []; tasks = []; prior = []
-            TFs = [tf for tf in regulators if tf != gene] # remove self regulation
+                X = []; Y = []; tasks = []; prior = []
+                TFs = [tf for tf in regulators if tf != gene] # remove self regulation
+    
+                for k in range(len(design)):
+                    if gene in response[k]:
+                        X.append(design[k][TFs])
+                        Y.append(response[k][gene].values.reshape(-1, 1))
+                        tasks.append(k)
+                if len(X) > 1:
+                    prior = self.format_prior(priors, gene, TFs, tasks, prior_weight)
+                    results.append(run_regression_EBIC(X, Y, TFs, tasks, gene, prior))
+        kvs.put('plist',(rank,results))
+        utils.kvsTearDown(kvs, rank)
 
+        if rank == 0:
+            results=[]
+            workers=int(os.environ['SLURM_NTASKS'])
+            for p in range(workers):
+                wrank,ps = kvs.get('plist')
+                results.extend(ps)
+            print ('rank 0 worker got final results of length: ', len(results))
+
+            # this could be its own function, but we shall move this later...
+            weights = []
+            rescaled_weights = []
+    
             for k in range(len(design)):
-                if gene in response[k]:
-                    X.append(design[k][TFs])
-                    Y.append(response[k][gene].values.reshape(-1, 1))
-                    tasks.append(k)
-            prior = self.format_prior(priors, gene, TFs, tasks, prior_weight)
-
-            if len(X) > 1:
-                # here it could just be if ownCheck, run_regression_EBIC()
-                # also the rank == 0 for no parallelization
-                # instead of saving all inputs in a list
-                args = {'X': X,
-                        'Y': Y,
-                        'TFs': TFs,
-                        'tasks': tasks,
-                        'gene': gene,
-                        'prior': prior}
-                args_list.append(args)
-
-        ####################### (put the follow-up for kvs here)
-        #### WOULD GO AWAY ####
-        if not cluster_id:
-            for args in args_list:
-                results.append(run_regression_EBIC(args))
+                results_k = []
+                for res in results:
+                    try:
+                        results_k.append(res[k])
+                    except:
+                        pass
+    
+                results_k = pd.concat(results_k)
+                weights_k = self.format_weights(results_k, 'weights', targets, regulators)
+                rescaled_weights_k = self.format_weights(results_k, 'resc_weights', targets, regulators)
+                rescaled_weights_k[rescaled_weights_k < 0.] = 0
+    
+                weights.append(weights_k)
+                rescaled_weights.append(rescaled_weights_k)
+    
+            return((weights, rescaled_weights))
         else:
-            import os
-            from ipyparallel import Client
-            c = Client(cluster_id = cluster_id)
-            dview = c.load_balanced_view()
-            dview.map(os.chdir, [os.getcwd()]*len(c.ids))
-            results = dview.map(run_regression_EBIC, args_list, ordered = False)
-        #### WOULD GO AWAY ####
-        #######################
-
-        # this could be its own function, but we shall move this later...
-        weights = []
-        rescaled_weights = []
-
-        for k in range(len(design)):
-            results_k = []
-            for res in results:
-                try:
-                    results_k.append(res[k])
-                except:
-                    pass
-
-            results_k = pd.concat(results_k)
-            weights_k = self.format_weights(results_k, 'weights', targets, regulators)
-            rescaled_weights_k = self.format_weights(results_k, 'resc_weights', targets, regulators)
-            rescaled_weights_k[rescaled_weights_k < 0.] = 0
-
-            weights.append(weights_k)
-            rescaled_weights.append(rescaled_weights_k)
-
-        return((weights, rescaled_weights))
+            return None
 
 
 def sum_squared_errors(X, Y, W, k):
@@ -368,16 +356,10 @@ def final_weights(X, y, TFs, gene):
     return(out_weights)
 
 
-def run_regression_EBIC(args):
+def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
     '''
 
     '''
-    X = args['X']
-    Y = args['Y']
-    TFs = args['TFs']
-    gene = args['gene']
-    prior = args['prior']
-
     n_tasks = len(X)
     n_preds = X[0].shape[1]
     n_samples = [X[k].shape[0] for k in range(n_tasks)]
@@ -410,7 +392,7 @@ def run_regression_EBIC(args):
     ###### RESCALE WEIGHTS ######
     output = {}
 
-    for k in args['tasks']:
+    for k in tasks:
         nonzero = outW[:,k] != 0
         if nonzero.sum() > 0:
             cTFs = np.asarray(TFs)[outW[:,k] != 0]
