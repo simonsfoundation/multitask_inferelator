@@ -66,9 +66,9 @@ class MTL_SBS_Workflow(WorkflowBase):
 
             self.regression_method.n_tasks = self.n_tasks
             self.regression_method.feature_count = len(self.tf_names)
-            ownCheck = utils.own(kvs, rank, chunk=25, reset=idx!=0)
+            ownCheck = utils.ownCheck(kvs, rank, chunk=25)
             current_betas, current_rescaled_betas = self.regression_method.run(X, Y,
-                            self.target_genes, self.tf_names, kvs, rank, ownCheck, 
+                            self.target_genes, self.tf_names, kvs, rank, ownCheck,
                             self.cluster_id, self.priors, self.prior_weight)
             for k in range(self.n_tasks):
                 betas[k].append(current_betas[k])
@@ -161,7 +161,7 @@ class MTL_SBS_Workflow(WorkflowBase):
             task_workflow_obj.results_processor = ResultsProcessor(betas[k], rescaled_betas[k])
             task_workflow_obj.results_processor.summarize_network(output_dir, task_workflow_obj.gold_standard, task_workflow_obj.priors_data)
         # rank-combine hack -- assumes all priors are the same
-        output_dir = os.path.join(self.input_dir, self.output_dir, 'rank-combined')
-        os.makedirs(output_dir)
-        task_workflow_obj.results_processor = ResultsProcessor([i for l in betas for i in l], [i for l in rescaled_betas for i in l])
-        task_workflow_obj.results_processor.summarize_network(output_dir, task_workflow_obj.gold_standard, task_workflow_obj.priors_data)
+        #output_dir = os.path.join(self.input_dir, self.output_dir, 'rank-combined')
+        #os.makedirs(output_dir)
+        #task_workflow_obj.results_processor = ResultsProcessor([i for l in betas for i in l], [i for l in rescaled_betas for i in l])
+        #task_workflow_obj.results_processor.summarize_network(output_dir, task_workflow_obj.gold_standard, task_workflow_obj.priors_data)

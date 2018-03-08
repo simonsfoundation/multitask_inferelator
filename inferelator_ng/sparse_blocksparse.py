@@ -5,6 +5,8 @@ from scipy.misc import comb
 from scipy.optimize import minimize
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
+from . import utils
+import os
 
 
 class MT_SBS_OneGene:
@@ -249,7 +251,7 @@ class MT_SBS_regression:
 
                 X = []; Y = []; tasks = []; prior = []
                 TFs = [tf for tf in regulators if tf != gene] # remove self regulation
-    
+
                 for k in range(len(design)):
                     if gene in response[k]:
                         X.append(design[k][TFs])
@@ -272,7 +274,7 @@ class MT_SBS_regression:
             # this could be its own function, but we shall move this later...
             weights = []
             rescaled_weights = []
-    
+
             for k in range(len(design)):
                 results_k = []
                 for res in results:
@@ -280,15 +282,15 @@ class MT_SBS_regression:
                         results_k.append(res[k])
                     except:
                         pass
-    
+
                 results_k = pd.concat(results_k)
                 weights_k = self.format_weights(results_k, 'weights', targets, regulators)
                 rescaled_weights_k = self.format_weights(results_k, 'resc_weights', targets, regulators)
                 rescaled_weights_k[rescaled_weights_k < 0.] = 0
-    
+
                 weights.append(weights_k)
                 rescaled_weights.append(rescaled_weights_k)
-    
+
             return((weights, rescaled_weights))
         else:
             return None
