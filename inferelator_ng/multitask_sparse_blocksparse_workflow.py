@@ -76,8 +76,8 @@ class MTL_SBS_Workflow(WorkflowBase):
 
         print('Saving outputs')
         print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
-
-        self.emit_results(betas, rescaled_betas)
+        if rank == 0:
+            self.emit_results(betas, rescaled_betas)
 
 
     def get_data(self):

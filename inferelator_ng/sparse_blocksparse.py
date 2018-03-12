@@ -293,7 +293,7 @@ class MT_SBS_regression:
 
             return((weights, rescaled_weights))
         else:
-            return None
+            return(None, None)
 
 
 def sum_squared_errors(X, Y, W, k):
