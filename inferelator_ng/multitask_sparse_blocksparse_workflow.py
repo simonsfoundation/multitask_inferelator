@@ -70,9 +70,10 @@ class MTL_SBS_Workflow(WorkflowBase):
             current_betas, current_rescaled_betas = self.regression_method.run(X, Y,
                             self.target_genes, self.tf_names, kvs, rank, ownCheck,
                             self.cluster_id, self.priors, self.prior_weight)
-            for k in range(self.n_tasks):
-                betas[k].append(current_betas[k])
-                rescaled_betas[k].append(current_rescaled_betas[k])
+            if rank == 0:
+                for k in range(self.n_tasks):
+                    betas[k].append(current_betas[k])
+                    rescaled_betas[k].append(current_rescaled_betas[k])
 
         print('Saving outputs')
         print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
