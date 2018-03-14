@@ -206,7 +206,7 @@ class AmuSR_regression:
 
         '''
 
-        targets = ['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
+        # targets = ['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
         results = Parallel(n_jobs=n_jobs)(delayed(run_regression_EBIC)(design, response,
                                     regulators, target, priors, prior_weight) for target in targets)
 
