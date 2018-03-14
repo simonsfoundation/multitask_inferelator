@@ -5,11 +5,10 @@ from scipy.misc import comb
 from scipy.optimize import minimize
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-from . import utils
-import os
+from joblib import Parallel, delayed
 
 
-class MT_SBS_OneGene:
+class AmuSR_OneGene:
 
     max_iter = 1000
     tolerance = 1e-2
@@ -18,7 +17,6 @@ class MT_SBS_OneGene:
 
         self.n_tasks = n_tasks
         self.n_features = n_features
-
 
     def preprocess_data(self, X, Y):
         """
@@ -172,7 +170,7 @@ class MT_SBS_OneGene:
 
 
 
-class MT_SBS_regression:
+class AmuSR_regression:
 
     '''
 
@@ -202,98 +200,36 @@ class MT_SBS_regression:
 
         return(out)
 
-    def format_prior(self, priors, gene, TFs, tasks, prior_weight):
-        '''
-        Returns priors for one gene (numpy matrix TFs by tasks)
-        '''
-        if priors is None:
-            priors_out = None
-        else:
-            priors_out = []
-            for k in tasks:
-                prior = priors[k]
-                prior = prior.loc[gene, TFs].replace(np.nan, 0)
-                prior = (prior != 0).astype(int)
-                prior /= prior_weight
-                prior[prior == 0] = 1.
-                prior = prior/prior.sum()*len(prior)
-                priors_out.append(prior)
-            priors_out = np.transpose(np.asarray(priors_out))
-        return(priors_out)
 
-
-    def run(self, design, response, targets, regulators,
-                    kvs, rank, ownCheck,
-                    cluster_id=None, priors=None, prior_weight=1):
+    def run(self, design, response, targets, regulators, priors=None, prior_weight=1, n_jobs=1):
         '''
 
         '''
-        prior_weight = float(prior_weight)
-        # targets = ['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
-        results = []
-        args_list = [] # remove
 
-        ##### NOTES FOR KVS #####
-        # for each gene:
-        # if ownCheck:
-        # Subset inputs for regression:
-            # X from design
-            # Y from response
-            # which tasks?
-            # prior: self.format_prior(...) --> returns prior for that gene only
-            # run_regression_EBIC(args)
-                # a change here could be instead of arguments being passed
-                # as a dictionary, they could be passed as regular args...
-            # at the end, we want a list of the outputs of run_regression_EBIC()
+        targets = ['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
+        results = Parallel(n_jobs=n_jobs)(delayed(run_regression_EBIC)(design, response,
+                                    regulators, target, priors, prior_weight) for target in targets)
 
-        for gene in targets:
-            if ownCheck.next():
+        weights = []
+        rescaled_weights = []
 
-                X = []; Y = []; tasks = []; prior = []
-                TFs = [tf for tf in regulators if tf != gene] # remove self regulation
+        for k in range(len(design)):
+            results_k = []
+            for res in results:
+                try:
+                    results_k.append(res[k])
+                except:
+                    pass
 
-                for k in range(len(design)):
-                    if gene in response[k]:
-                        X.append(design[k][TFs])
-                        Y.append(response[k][gene].values.reshape(-1, 1))
-                        tasks.append(k)
-                if len(X) > 1:
-                    prior = self.format_prior(priors, gene, TFs, tasks, prior_weight)
-                    results.append(run_regression_EBIC(X, Y, TFs, tasks, gene, prior))
-        kvs.put('plist',(rank,results))
-        utils.kvsTearDown(kvs, rank)
+            results_k = pd.concat(results_k)
+            weights_k = self.format_weights(results_k, 'weights', targets, regulators)
+            rescaled_weights_k = self.format_weights(results_k, 'resc_weights', targets, regulators)
+            rescaled_weights_k[rescaled_weights_k < 0.] = 0
 
-        if rank == 0:
-            results=[]
-            workers=int(os.environ['SLURM_NTASKS'])
-            for p in range(workers):
-                wrank,ps = kvs.get('plist')
-                results.extend(ps)
-            print ('rank 0 worker got final results of length: ', len(results))
+            weights.append(weights_k)
+            rescaled_weights.append(rescaled_weights_k)
 
-            # this could be its own function, but we shall move this later...
-            weights = []
-            rescaled_weights = []
-
-            for k in range(len(design)):
-                results_k = []
-                for res in results:
-                    try:
-                        results_k.append(res[k])
-                    except:
-                        pass
-
-                results_k = pd.concat(results_k)
-                weights_k = self.format_weights(results_k, 'weights', targets, regulators)
-                rescaled_weights_k = self.format_weights(results_k, 'resc_weights', targets, regulators)
-                rescaled_weights_k[rescaled_weights_k < 0.] = 0
-
-                weights.append(weights_k)
-                rescaled_weights.append(rescaled_weights_k)
-
-            return((weights, rescaled_weights))
-        else:
-            return(None, None)
+        return((weights, rescaled_weights))
 
 
 def sum_squared_errors(X, Y, W, k):
@@ -358,46 +294,86 @@ def final_weights(X, y, TFs, gene):
     return(out_weights)
 
 
-def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
+def format_prior(priors, gene, TFs, tasks, prior_weight):
+    '''
+    Returns priors for one gene (numpy matrix TFs by tasks)
+    '''
+    if priors is None:
+        priors_out = None
+    else:
+        priors_out = []
+        for k in tasks:
+            prior = priors[k]
+            prior = prior.loc[gene, TFs].replace(np.nan, 0)
+            prior = (prior != 0).astype(int)
+            prior /= prior_weight
+            prior[prior == 0] = 1.
+            prior = prior/prior.sum()*len(prior)
+            priors_out.append(prior)
+        priors_out = np.transpose(np.asarray(priors_out))
+    return(priors_out)
+
+
+def run_regression_EBIC(design, response, regulators, gene, priors, prior_weight):
     '''
 
     '''
-    n_tasks = len(X)
-    n_preds = X[0].shape[1]
-    n_samples = [X[k].shape[0] for k in range(n_tasks)]
 
-    ###### EBIC ######
-    Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
-    Ss = np.linspace(0.51, 0.99, 10)[::-1]
-    lamBparam = np.sqrt((n_tasks * np.log(n_preds))/np.mean(n_samples))
+    X = []; Y = []; tasks = []; prior = []
+    TFs = [tf for tf in regulators if tf != gene] # remove self regulation
 
-    model = MT_SBS_OneGene(n_tasks, n_preds)
-    X, Y = model.preprocess_data(X, Y)
-    C, D = model.covariance_update_terms(X, Y)
-    S = np.zeros((n_preds, n_tasks))
-    B = np.zeros((n_preds, n_tasks))
+    for k in range(len(design)):
+        if gene in response[k]:
+            X.append(design[k][TFs])
+            Y.append(response[k][gene].values.reshape(-1, 1))
+            tasks.append(k)
 
-    min_ebic = float('Inf')
+    prior = format_prior(priors, gene, TFs, tasks, float(prior_weight))
 
-    for c in Cs:
-        tmp_lamB = c * lamBparam
-        for s in Ss:
-            tmp_lamS = s * tmp_lamB
-            W, S, B = model.fit(X, Y, tmp_lamB, tmp_lamS, C, D, S, B, prior)
-            ebic_score = ebic(X, Y, W, n_tasks, n_samples, n_preds)
-            if ebic_score < min_ebic:
-                min_ebic = ebic_score
-                lamB = tmp_lamB
-                lamS = tmp_lamS
-                outW = W
+    ### clean up for memory ###
+    del design
+    del response
+    del priors
+    ### clean up for memory ###
 
-    ###### RESCALE WEIGHTS ######
-    output = {}
+    if len(tasks) > 1:
 
-    for k in tasks:
-        nonzero = outW[:,k] != 0
-        if nonzero.sum() > 0:
-            cTFs = np.asarray(TFs)[outW[:,k] != 0]
-            output[k] = final_weights(X[k][:, nonzero], Y[k], cTFs, gene)
+        n_tasks = len(X)
+        n_preds = X[0].shape[1]
+        n_samples = [X[k].shape[0] for k in range(n_tasks)]
 
-    return(output)
+        ###### EBIC ######
+        Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
+        Ss = np.linspace(0.51, 0.99, 10)[::-1]
+        lamBparam = np.sqrt((n_tasks * np.log(n_preds))/np.mean(n_samples))
+
+        model = AmuSR_OneGene(n_tasks, n_preds)
+        X, Y = model.preprocess_data(X, Y)
+        C, D = model.covariance_update_terms(X, Y)
+        S = np.zeros((n_preds, n_tasks))
+        B = np.zeros((n_preds, n_tasks))
+
+        min_ebic = float('Inf')
+
+        for c in Cs:
+            tmp_lamB = c * lamBparam
+            for s in Ss:
+                tmp_lamS = s * tmp_lamB
+                W, S, B = model.fit(X, Y, tmp_lamB, tmp_lamS, C, D, S, B, prior)
+                ebic_score = ebic(X, Y, W, n_tasks, n_samples, n_preds)
+                if ebic_score < min_ebic:
+                    min_ebic = ebic_score
+                    lamB = tmp_lamB
+                    lamS = tmp_lamS
+                    outW = W
+
+        ###### RESCALE WEIGHTS ######
+        output = {}
+
+        for k in tasks:
+            nonzero = outW[:,k] != 0
+            if nonzero.sum() > 0:
+                chosen_regulators = np.asarray(TFs)[nonzero != 0]
+                output[k] = final_weights(X[k][:, nonzero], Y[k], chosen_regulators, gene)
+
+        return(output)

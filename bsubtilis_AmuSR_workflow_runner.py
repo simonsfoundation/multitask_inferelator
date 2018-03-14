@@ -1,7 +1,7 @@
 
-from inferelator_ng.multitask_sparse_blocksparse_workflow import MTL_SBS_Workflow
+from inferelator_ng.amusr_tfa_workflow import AmuSR_Workflow
 
-workflow = MTL_SBS_Workflow()
+workflow = AmuSR_Workflow()
 idx = 1
 # Common configuration parameters
 workflow.input_dir = 'data/bsubtilis_MTL'
@@ -12,10 +12,10 @@ workflow.delTmax = 60
 workflow.delTmin = 0
 workflow.tau = 15
 workflow.n_tasks = 2
+workflow.n_jobs = 2
 workflow.num_bootstraps = 2
 workflow.priors_filelist = ['gold_standard.tsv', 'gold_standard.tsv']
 workflow.gold_standard_filelist = ['gold_standard.tsv', 'gold_standard.tsv']
-workflow.output_dir = 'MTLkvs'
+workflow.output_dir = 'MTLjoblib'
 workflow.tasks_dir = ['py79', 'bsb1']
 workflow.run()
-

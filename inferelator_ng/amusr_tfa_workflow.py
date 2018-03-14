@@ -8,20 +8,13 @@ from . import utils
 from workflow import WorkflowBase
 import design_response_translation #added python design_response
 from tfa import TFA
-from sparse_blocksparse import *
+from amusr import *
 from results_processor import ResultsProcessor
 from time import localtime, strftime
 import datetime
-from kvsclient import KVSClient
 
-# Connect to the key value store service (its location is found via an
-# environment variable that is set when this is started vid kvsstcp.py
-# --execcmd).
-kvs = KVSClient()
-# Find out which process we are (assumes running under SLURM).
-rank = int(os.environ['SLURM_PROCID'])
 
-class MTL_SBS_Workflow(WorkflowBase):
+class AmuSR_Workflow(WorkflowBase):
 
     # Common configuration parameters
     input_dir = 'data'
@@ -30,10 +23,13 @@ class MTL_SBS_Workflow(WorkflowBase):
     target_genes_file = 'target_genes.tsv'
     n_tasks = 2
     prior_weight = 1
+
+    n_jobs = 1
+
     meta_data_filelist = None
     priors_filelist = None
     gold_standard_filelist = None
-    cluster_id = None
+
     tasks_dir = [''.join(['task_', str(k)]) for k in range(n_tasks)]
     output_dir = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
@@ -45,11 +41,11 @@ class MTL_SBS_Workflow(WorkflowBase):
         np.random.seed(self.random_seed)
 
         self.design_response_driver = design_response_translation.PythonDRDriver() #this is the python switch
-        self.regression_method = MT_SBS_regression()
+        self.regression_method = AmuSR_regression()
         self.get_data()
         self.compute_activity()
 
-        print('Calculating betas using Multitask Dirty Model')
+        print('Calculating betas using Inferelator-AmuSR for Multitask Regression')
         print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
 
         betas = [[] for k in range(self.n_tasks)]
@@ -66,19 +62,17 @@ class MTL_SBS_Workflow(WorkflowBase):
 
             self.regression_method.n_tasks = self.n_tasks
             self.regression_method.feature_count = len(self.tf_names)
-            ownCheck = utils.ownCheck(kvs, rank, chunk=25)
+
             current_betas, current_rescaled_betas = self.regression_method.run(X, Y,
-                            self.target_genes, self.tf_names, kvs, rank, ownCheck,
-                            self.cluster_id, self.priors, self.prior_weight)
-            if rank == 0:
-                for k in range(self.n_tasks):
-                    betas[k].append(current_betas[k])
-                    rescaled_betas[k].append(current_rescaled_betas[k])
+                    self.target_genes, self.tf_names, self.priors, self.prior_weight, self.n_jobs)
+
+            for k in range(self.n_tasks):
+                betas[k].append(current_betas[k])
+                rescaled_betas[k].append(current_rescaled_betas[k])
 
         print('Saving outputs')
         print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
-        if rank == 0:
-            self.emit_results(betas, rescaled_betas)
+        self.emit_results(betas, rescaled_betas)
 
 
     def get_data(self):
@@ -161,8 +155,3 @@ class MTL_SBS_Workflow(WorkflowBase):
             os.makedirs(output_dir)
             task_workflow_obj.results_processor = ResultsProcessor(betas[k], rescaled_betas[k])
             task_workflow_obj.results_processor.summarize_network(output_dir, task_workflow_obj.gold_standard, task_workflow_obj.priors_data)
-        # rank-combine hack -- assumes all priors are the same
-        #output_dir = os.path.join(self.input_dir, self.output_dir, 'rank-combined')
-        #os.makedirs(output_dir)
-        #task_workflow_obj.results_processor = ResultsProcessor([i for l in betas for i in l], [i for l in rescaled_betas for i in l])
-        #task_workflow_obj.results_processor.summarize_network(output_dir, task_workflow_obj.gold_standard, task_workflow_obj.priors_data)
