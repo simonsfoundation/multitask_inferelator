@@ -1,8 +1,8 @@
 
-from inferelator_ng.amusr_tfa_workflow import AmuSR_Workflow
+from inferelator_ng.amusr_tfa_workflow import AMuSR_Workflow
 
-workflow = AmuSR_Workflow()
-idx = 1
+workflow = AMuSR_Workflow()
+
 # Common configuration parameters
 workflow.input_dir = 'data/bsubtilis_MTL'
 workflow.expression_filelist = ["expression_py79.tsv", "expression_bsb1.tsv"]
@@ -16,6 +16,6 @@ workflow.n_jobs = 2
 workflow.num_bootstraps = 2
 workflow.priors_filelist = ['gold_standard.tsv', 'gold_standard.tsv']
 workflow.gold_standard_filelist = ['gold_standard.tsv', 'gold_standard.tsv']
-workflow.output_dir = 'MTLjoblib'
+workflow.output_dir = 'MTL_network'
 workflow.tasks_dir = ['py79', 'bsb1']
 workflow.run()

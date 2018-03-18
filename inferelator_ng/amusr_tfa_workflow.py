@@ -14,7 +14,7 @@ from time import localtime, strftime
 import datetime
 
 
-class AmuSR_Workflow(WorkflowBase):
+class AMuSR_Workflow(WorkflowBase):
 
     # Common configuration parameters
     input_dir = 'data'
