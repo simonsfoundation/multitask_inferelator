@@ -224,7 +224,6 @@ class AMuSR_regression:
         '''
 
         '''
-        targets = targets[:4]
         # split response matrix...
         responses = self.get_response_for_targets(response, targets)
         # create a function call that takes in a particular target
@@ -235,7 +234,7 @@ class AMuSR_regression:
 
         if cluster_id is None:
             results = [regression_call(target) for target in targets]
-            
+
         else:
             import os
             from ipyparallel import Client
