@@ -24,7 +24,7 @@ class AMuSR_Workflow(WorkflowBase):
     n_tasks = 2
     prior_weight = 1
 
-    n_jobs = 1
+    cluster_id = None
 
     meta_data_filelist = None
     priors_filelist = None
@@ -41,11 +41,11 @@ class AMuSR_Workflow(WorkflowBase):
         np.random.seed(self.random_seed)
 
         self.design_response_driver = design_response_translation.PythonDRDriver() #this is the python switch
-        self.regression_method = AmuSR_regression()
+        self.regression_method = AMuSR_regression()
         self.get_data()
         self.compute_activity()
 
-        print('Calculating betas using Inferelator-AmuSR for Multitask Regression')
+        print('Calculating betas using Inferelator-AMuSR for Multitask Regression')
         print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
 
         betas = [[] for k in range(self.n_tasks)]
@@ -64,7 +64,7 @@ class AMuSR_Workflow(WorkflowBase):
             self.regression_method.feature_count = len(self.tf_names)
 
             current_betas, current_rescaled_betas = self.regression_method.run(X, Y,
-                    self.target_genes, self.tf_names, self.priors, self.prior_weight, self.n_jobs)
+                    self.target_genes, self.tf_names, self.priors, self.prior_weight, self.cluster_id)
 
             for k in range(self.n_tasks):
                 betas[k].append(current_betas[k])
