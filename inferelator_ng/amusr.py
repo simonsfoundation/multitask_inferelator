@@ -255,7 +255,7 @@ class AMuSR_regression:
                 # map_async from balanced_view obj will schedule regression_call for each target to a different process
                 partial_results = lview.map_async(regression_call, targets_chunk)
                 # tell us how long each 100 genes take to run
-                partial_results.wait_interactive()
+                # partial_results.wait_interactive() # does not work well if not interactive...
                 # actually gather results
                 partial_results = partial_results.get()
                 # save results for this chunk in results
