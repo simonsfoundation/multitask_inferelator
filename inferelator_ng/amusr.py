@@ -260,10 +260,13 @@ class AMuSR_regression:
                 partial_results = partial_results.get()
                 # save results for this chunk in results
                 results.append(partial_results)
+                # clear the namespace from engines.
+                client.clear()
                 # clear up caches from previous tasks from both the hub and the local client
                 client.purge_everything()
-            # close connection to socket? re-open in next bootstrap anyway
-            client.close()
+                # clear results from engines
+                client.purge_results('all')
+
             # join partial_results lists into one list of results
             results = [result for partial_results in results for result in partial_results]
 
