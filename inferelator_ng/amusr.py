@@ -5,17 +5,7 @@ from scipy.misc import comb
 from scipy.optimize import minimize
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-# from joblib import Parallel, delayed
-# from dask import delayed
-# from dask.distributed import Client, LocalCluster
 
-# set up global variables to be shared across cores (read-only)
-# DESIGN = None
-# RESPONSE = None
-# PRIORS = None
-# REGULATORS = None
-# PRIORS = None
-# PRIOR_WEIGHT = None
 
 class AMuSR_OneGene:
 
@@ -260,10 +250,13 @@ class AMuSR_regression:
                 partial_results = partial_results.get()
                 # save results for this chunk in results
                 results.append(partial_results)
+                # clear the namespace from engines.
+                client.clear()
                 # clear up caches from previous tasks from both the hub and the local client
                 client.purge_everything()
-            # close connection to socket? re-open in next bootstrap anyway
-            client.close()
+                # clear results from engines
+                client.purge_results('all')
+
             # join partial_results lists into one list of results
             results = [result for partial_results in results for result in partial_results]
 
@@ -429,130 +422,4 @@ def run_regression_EBIC(design, response, target, regulators, priors, prior_weig
 
         return(output)
 
-
-        ######################################################
-        ######################## DASK ########################
-        ######################################################
-        # cluster = LocalCluster(n_workers = 3)
-        # client = Client(cluster)
-        #
-        # # "scatter" large datasets across cores at once, and pass pointer to function!
-        # [design_future] = client.scatter([design])
-        # [response_future] = client.scatter([response])
-        # [priors_future] = client.scatter([priors])
-        # # run regression in parallel
-        # jobs = [client.submit(run_regression_EBIC, design_future, response_future, regulators, target, priors_future, prior_weight) for target in targets]
-        # results = client.gather(jobs, asynchronous=True)
-        ######################################################
-        ######################## DASK ########################
-        ######################################################
-
-
-        ############################################
-        ################ joblib ####################
-        ############################################
-        # jobs = (delayed(run_regression_EBIC_ipp)(target) for target in targets)
-        # results = Parallel(cluster_id=cluster_id, verbose=5, backend='threading')(jobs)
-        ############################################
-        ################ joblib ####################
-        ############################################
-
-
-# def run_regression_EBIC_ipp(target):
-#     '''
-#
-#     '''
-#
-#     X = []; Y = [];
-#     tasks = []; prior = []
-#     # remove self regulation
-#     TFs = [tf for tf in REGULATORS if tf != target]
-#
-#     for k in range(len(DESIGN)):
-#         if target in RESPONSE[k]:
-#             X.append(DESIGN[k][TFs])
-#             Y.append(RESPONSE[k][target].values.reshape(-1, 1))
-#             tasks.append(k)
-#
-#     prior = format_prior(PRIORS, target, TFs, tasks, float(PRIOR_WEIGHT))
-#
-#     if len(tasks) > 1:
-#
-#         n_tasks = len(X)
-#         n_preds = X[0].shape[1]
-#         n_samples = [X[k].shape[0] for k in range(n_tasks)]
-#
-#         ###### EBIC ######
-#         Cs = np.logspace(np.log10(0.01), np.log10(10), 20)[::-1]
-#         Ss = np.linspace(0.51, 0.99, 10)[::-1]
-#         lamBparam = np.sqrt((n_tasks * np.log(n_preds))/np.mean(n_samples))
-#
-#         model = AMuSR_OneGene(n_tasks, n_preds)
-#         X, Y = model.preprocess_data(X, Y)
-#         C, D = model.covariance_update_terms(X, Y)
-#         S = np.zeros((n_preds, n_tasks))
-#         B = np.zeros((n_preds, n_tasks))
-#
-#         min_ebic = float('Inf')
-#
-#         for c in Cs:
-#             tmp_lamB = c * lamBparam
-#             for s in Ss:
-#                 tmp_lamS = s * tmp_lamB
-#                 W, S, B = model.fit(X, Y, tmp_lamB, tmp_lamS, C, D, S, B, prior)
-#                 ebic_score = ebic(X, Y, W, n_tasks, n_samples, n_preds)
-#                 if ebic_score < min_ebic:
-#                     min_ebic = ebic_score
-#                     lamB = tmp_lamB
-#                     lamS = tmp_lamS
-#                     outW = W
-#
-#         ###### RESCALE WEIGHTS ######
-#         output = {}
-#
-#         for k in tasks:
-#             nonzero = outW[:,k] != 0
-#             if nonzero.sum() > 0:
-#                 chosen_regulators = np.asarray(TFs)[nonzero != 0]
-#                 output[k] = final_weights(X[k][:, nonzero], Y[k], chosen_regulators, target)
-#
-#         return(output)
-
-
-# def run_regression_multiple_genes(design, response, regulators, targets, priors, prior_weight):
-#
-#     targets = ['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
-#     import os
-#
-#     y = 3
-#     client = Client() # processes=False
-#     #client.map(square, range(10))
-#     # y = [client.submit(test_model, x) for x in np.linspace(0, 1)]
-#     # y = client.gather(y)  # collect the results
-#     # print(y)
-#
-#     jobs = (delayed(run_regression_EBIC)(design, response,
-#                  regulators, target, priors, prior_weight) for target in targets)
-#
-#     # lazy_values = [delayed(square)(future, x) for x in [1,2,3]]
-#     futures = client.compute(jobs)
-#     # futures = c.compute(lazy_values)
-#     # regulators = client.scatter(y, broadcast=True)
-#     print(futures)
-#     # results = client.map(square, range(10), regulators)
-#     # results = client.gather(results)
-#     print(futures.result())
-#
-#     # from ipyparallel import Client
-#     # client = Client()
-#     # lview = client[:]
-#     # lview.map(os.chdir, [os.getcwd()]*len(client.ids))
-#     # lview.push(dict(design = design, response = response,
-#     #     regulators = regulators, priors = priors, prior_weight = prior_weight))
-#     # print(client[0]['regulators'])
-#     # results = client[:].apply_sync(run_regression_EBIC_ipp, targets)
-#     # return results
-#
-# def square(y, x):
-#
-#     return (x ** 2, y ** 2)
+        
