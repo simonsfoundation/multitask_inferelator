@@ -261,7 +261,6 @@ class MT_SBS_regression:
                     prior = self.format_prior(priors, gene, TFs, tasks, prior_weight)
                     results.append(run_regression_EBIC(X, Y, TFs, tasks, gene, prior))
         kvs.put('plist',(rank,results))
-        utils.kvsTearDown(kvs, rank)
 
         if rank == 0:
             results=[]
@@ -270,7 +269,7 @@ class MT_SBS_regression:
                 wrank,ps = kvs.get('plist')
                 results.extend(ps)
             print ('rank 0 worker got final results of length: ', len(results))
-
+            utils.kvsTearDown(kvs, rank)
             # this could be its own function, but we shall move this later...
             weights = []
             rescaled_weights = []
