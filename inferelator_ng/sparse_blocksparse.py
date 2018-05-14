@@ -229,7 +229,7 @@ class MT_SBS_regression:
 
         '''
         prior_weight = float(prior_weight)
-        # targets = ['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
+        #targets = targets[:100]#['BSU02100', 'BSU05340', 'BSU24010', 'BSU24040'] # test
         results = []
         args_list = [] # remove
 
@@ -245,10 +245,8 @@ class MT_SBS_regression:
                 # a change here could be instead of arguments being passed
                 # as a dictionary, they could be passed as regular args...
             # at the end, we want a list of the outputs of run_regression_EBIC()
-
         for gene in targets:
             if ownCheck.next():
-                print(gene)
                 X = []; Y = []; tasks = []; prior = []
                 TFs = [tf for tf in regulators if tf != gene] # remove self regulation
 
@@ -260,13 +258,17 @@ class MT_SBS_regression:
                 if len(X) > 1:
                     prior = self.format_prior(priors, gene, TFs, tasks, prior_weight)
                     results.append(run_regression_EBIC(X, Y, TFs, tasks, gene, prior))
-        kvs.put('plist',(rank,results))
+
+        kvs.put('plist %d'%rank, (rank, results))
+        print('rank ' + str(rank) + 'put results of length: ' + str(len(results)))
 
         if rank == 0:
             results=[]
             workers=int(os.environ['SLURM_NTASKS'])
             for p in range(workers):
-                wrank,ps = kvs.get('plist')
+                print('getting results from worker: ' , p)
+                wrank, ps = kvs.get('plist %d'%p)
+                print('length:' , len(ps))
                 results.extend(ps)
             print ('rank 0 worker got final results of length: ', len(results))
             utils.kvsTearDown(kvs, rank)
@@ -398,5 +400,4 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
         if nonzero.sum() > 0:
             cTFs = np.asarray(TFs)[outW[:,k] != 0]
             output[k] = final_weights(X[k][:, nonzero], Y[k], cTFs, gene)
-
     return(output)

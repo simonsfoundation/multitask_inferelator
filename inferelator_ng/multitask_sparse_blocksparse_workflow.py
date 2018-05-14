@@ -54,7 +54,7 @@ class MTL_SBS_Workflow(WorkflowBase):
 
         betas = [[] for k in range(self.n_tasks)]
         rescaled_betas = [[] for k in range(self.n_tasks)]
-
+        
         for idx, bootstrap in enumerate(self.get_bootstraps()):
             print('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps))
             X = []
@@ -63,7 +63,10 @@ class MTL_SBS_Workflow(WorkflowBase):
                 task_workflow_obj = self.workflow_objs[k]
                 X.append(task_workflow_obj.activity.ix[:, bootstrap[k]].transpose())
                 Y.append(task_workflow_obj.response.ix[:, bootstrap[k]].transpose())
-
+            if 0 == rank:
+                kvs.put('bootstrap %d'%idx, 'This is how we stop workers from moving ahead on a new bootstrap')
+            else:
+                kvs.view('bootstrap %d'%idx)
             self.regression_method.n_tasks = self.n_tasks
             self.regression_method.feature_count = len(self.tf_names)
             ownCheck = utils.ownCheck(kvs, rank, chunk=25)
@@ -75,9 +78,9 @@ class MTL_SBS_Workflow(WorkflowBase):
                     betas[k].append(current_betas[k])
                     rescaled_betas[k].append(current_rescaled_betas[k])
 
-        print('Saving outputs')
-        print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
         if rank == 0:
+            print('Saving outputs')
+            print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
             self.emit_results(betas, rescaled_betas)
 
 
