@@ -1,5 +1,5 @@
 """
-Run Multitask Network Inference with TFA-SBS.
+Run Multitask Network Inference with TFA-AMuSR.
 """
 import os
 import numpy as np
@@ -12,7 +12,14 @@ from amusr import *
 from results_processor import ResultsProcessor
 from time import localtime, strftime
 import datetime
+from kvsstcp.kvsclient import KVSClient
 
+# Connect to the key value store service (its location is found via an
+# environment variable that is set when this is started vid kvsstcp.py
+# --execcmd).
+kvs = KVSClient()
+# Find out which process we are (assumes running under SLURM).
+rank = int(os.environ['SLURM_PROCID'])
 
 class AMuSR_Workflow(WorkflowBase):
 
@@ -23,13 +30,10 @@ class AMuSR_Workflow(WorkflowBase):
     target_genes_file = 'target_genes.tsv'
     n_tasks = 2
     prior_weight = 1
-
-    cluster_id = None
-
     meta_data_filelist = None
     priors_filelist = None
     gold_standard_filelist = None
-
+    cluster_id = None
     tasks_dir = [''.join(['task_', str(k)]) for k in range(n_tasks)]
     output_dir = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
@@ -50,7 +54,7 @@ class AMuSR_Workflow(WorkflowBase):
 
         betas = [[] for k in range(self.n_tasks)]
         rescaled_betas = [[] for k in range(self.n_tasks)]
-
+        
         for idx, bootstrap in enumerate(self.get_bootstraps()):
             print('Bootstrap {} of {}'.format((idx + 1), self.num_bootstraps))
             X = []
@@ -59,20 +63,25 @@ class AMuSR_Workflow(WorkflowBase):
                 task_workflow_obj = self.workflow_objs[k]
                 X.append(task_workflow_obj.activity.ix[:, bootstrap[k]].transpose())
                 Y.append(task_workflow_obj.response.ix[:, bootstrap[k]].transpose())
-
+            if 0 == rank:
+                kvs.put('bootstrap %d'%idx, 'This is how we stop workers from moving ahead on a new bootstrap')
+            else:
+                kvs.view('bootstrap %d'%idx)
             self.regression_method.n_tasks = self.n_tasks
             self.regression_method.feature_count = len(self.tf_names)
-
+            ownCheck = utils.ownCheck(kvs, rank, chunk=25)
             current_betas, current_rescaled_betas = self.regression_method.run(X, Y,
-                    self.target_genes, self.tf_names, self.priors, self.prior_weight, self.cluster_id)
+                            self.target_genes, self.tf_names, kvs, rank, ownCheck,
+                            self.cluster_id, self.priors, self.prior_weight)
+            if rank == 0:
+                for k in range(self.n_tasks):
+                    betas[k].append(current_betas[k])
+                    rescaled_betas[k].append(current_rescaled_betas[k])
 
-            for k in range(self.n_tasks):
-                betas[k].append(current_betas[k])
-                rescaled_betas[k].append(current_rescaled_betas[k])
-
-        print('Saving outputs')
-        print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
-        self.emit_results(betas, rescaled_betas)
+        if rank == 0:
+            print('Saving outputs')
+            print(strftime("%Y-%m-%d %H:%M:%S", localtime()))
+            self.emit_results(betas, rescaled_betas)
 
 
     def get_data(self):
@@ -155,3 +164,4 @@ class AMuSR_Workflow(WorkflowBase):
             os.makedirs(output_dir)
             task_workflow_obj.results_processor = ResultsProcessor(betas[k], rescaled_betas[k])
             task_workflow_obj.results_processor.summarize_network(output_dir, task_workflow_obj.gold_standard, task_workflow_obj.priors_data)
+ 
