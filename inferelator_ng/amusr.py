@@ -246,15 +246,12 @@ class AMuSR_regression:
                     results.append(run_regression_EBIC(X, Y, TFs, tasks, gene, prior))
 
         kvs.put('plist %d'%rank, (rank, results))
-        print('rank ' + str(rank) + 'put results of length: ' + str(len(results)))
 
         if rank == 0:
             results=[]
             workers=int(os.environ['SLURM_NTASKS'])
             for p in range(workers):
-                print('getting results from worker: ' , p)
                 wrank, ps = kvs.get('plist %d'%p)
-                print('length:' , len(ps))
                 results.extend(ps)
             print ('rank 0 worker got final results of length: ', len(results))
             utils.kvsTearDown(kvs, rank)
