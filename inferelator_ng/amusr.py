@@ -72,7 +72,7 @@ class AMuSR_OneGene:
                 else:
                     alpha = (c[j]-np.sum((b+s_tmp)*d[j]))/d[j,j]
                 # lasso regularization
-                if alpha <= p[j]*lamS:
+                if abs(alpha) <= p[j]*lamS:
                     s[j] = 0.
                 else:
                     s[j] = alpha-(np.sign(alpha)*p[j]*lamS)
