@@ -5,7 +5,7 @@ from scipy.misc import comb
 from scipy.optimize import minimize
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-from . import utils
+import utils
 import os
 
 
