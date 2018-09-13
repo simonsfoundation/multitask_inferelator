@@ -378,9 +378,9 @@ def run_regression_EBIC(X, Y, TFs, tasks, gene, prior):
     ###### RESCALE WEIGHTS ######
     output = {}
 
-    for k in tasks:
-        nonzero = outW[:,k] != 0
+    for kx, k in enumerate(tasks):
+        nonzero = outW[:,kx] != 0
         if nonzero.sum() > 0:
-            cTFs = np.asarray(TFs)[outW[:,k] != 0]
-            output[k] = final_weights(X[k][:, nonzero], Y[k], cTFs, gene)
+            cTFs = np.asarray(TFs)[outW[:,kx] != 0]
+            output[k] = final_weights(X[kx][:, nonzero], Y[kx], cTFs, gene)
     return(output)
